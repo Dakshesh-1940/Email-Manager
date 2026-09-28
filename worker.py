@@ -98,18 +98,25 @@ def parse_tasks_with_ai(subject, body):
 
 
 def run_check():
+    print("Connecting to database...")
     conn = get_db_connection()
     try:
+        print("Connecting to IMAP server...")
         mail = imaplib.IMAP4_SSL(IMAP_SERVER)
         mail.login(EMAIL_USER, EMAIL_PASS)
         mail.select("INBOX")
+        print("Successfully logged into IMAP!")
 
         status, messages = mail.search(None, "UNSEEN")
         email_ids = messages[0].split()
+        print(f"Total UNSEEN emails found: {len(email_ids)}")
 
         for e_id in email_ids:
             str_id = e_id.decode("utf-8")
+            print(f"Checking email ID: {str_id}")
+
             if is_processed(conn, str_id):
+                print(f"Email ID {str_id} already processed. Skipping.")
                 continue
 
             _, msg_data = mail.fetch(e_id, "(RFC822)")
@@ -117,6 +124,8 @@ def run_check():
                 if isinstance(part, tuple):
                     msg = email.message_from_bytes(part[1])
                     subject = decode_str(msg["Subject"])
+                    print(f"Processing Email Subject: '{subject}'")
+
                     body = ""
                     if msg.is_multipart():
                         for p in msg.walk():
@@ -140,7 +149,10 @@ def run_check():
                             or ""
                         )
 
+                    print("Sending email content to OpenAI for parsing...")
                     parsed = parse_tasks_with_ai(subject, clean_body_text(body))
+                    print(f"AI Result: {parsed}")
+
                     if parsed and parsed.get("has_actionable_task"):
                         save_todo(
                             conn,
@@ -151,14 +163,18 @@ def run_check():
                             parsed.get("deadline", "Not specified"),
                             parsed.get("details", ""),
                         )
-                        print(f"Added task: {parsed.get('task_title')}")
+                        print(f"Successfully added task: {parsed.get('task_title')}")
+                    else:
+                        print("AI marked this email as non-actionable.")
 
                     mark_processed(conn, str_id)
 
         mail.logout()
+        print("Finished processing emails.")
+    except Exception as e:
+        print(f"Error during execution: {e}")
     finally:
         conn.close()
-
 
 if __name__ == "__main__":
     run_check()
