@@ -104,7 +104,7 @@ def run_check():
         mail.login(EMAIL_USER, EMAIL_PASS)
         mail.select("INBOX")
 
-        status, messages = mail.search(None, "ALL")
+        status, messages = mail.search(None, "UNSEEN")
         email_ids = messages[0].split()
 
         for e_id in email_ids:
